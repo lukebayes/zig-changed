@@ -2,7 +2,12 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
+const Writer = std.io.Writer;
+const expect = std.testing.expect;
 const expectEqualStrings = std.testing.expectEqualStrings;
+const fmt = std.fmt;
+const io = std.io;
+const mem = std.mem;
 const print = std.debug.print;
 const process = std.process;
 const talloc = std.testing.allocator;
@@ -60,8 +65,8 @@ pub const ArgParser = struct {
         self.allocator.destroy(self);
     }
 
-    pub fn usage(self: *ArgParser) void {
-        print(
+    pub fn usage(self: *ArgParser, buffer: anytype) !void {
+        try fmt.format(buffer,
             \\{s} {s}
             \\Usage: {s}
             \\  Options:
@@ -84,7 +89,7 @@ test "ArgParser is instantiable" {
 test "ArgParser append" {
     var p = try ArgParser.init(talloc);
     p.exe_name = "abcd";
-    p.exe_desc = "Makes everything just a little more difficult";
+    p.exe_desc = "makes everything just a little more difficult";
 
     defer p.deinit();
 
@@ -104,7 +109,47 @@ test "ArgParser append" {
         .is_req = false,
     });
 
-    p.usage();
+    var buf: [512]u8 = undefined;
+    var buf_stream = io.fixedBufferStream(&buf);
+    var writer = buf_stream.writer();
+    try p.usage(writer);
+    var lines = mem.split(buf_stream.getWritten(), "\n");
+
+    var line = try lines.next() orelse error.Fail;
+    try expectEqualStrings(line, "abcd makes everything just a little more difficult");
+
+    line = try lines.next() orelse error.Fail;
+    try expectEqualStrings(line, "Usage: abcd");
+
+    line = try lines.next() orelse error.Fail;
+    try expectEqualStrings(line, "  Options:");
+
+    var empty = lines.next();
+    try expect(empty == null);
+}
+
+test "ArgParser.parse" {
+    var p = try ArgParser.init(talloc);
+    p.exe_name = "abcd";
+    p.exe_desc = "makes everything just a little more difficult";
+
+    defer p.deinit();
+
+    try p.append(.{
+        .arg_type = ArgType.String,
+        .name = "foo",
+        .short = "f",
+        .desc = "Foo the foo",
+        .is_req = true,
+    });
+
+    try p.append(.{
+        .arg_type = ArgType.String,
+        .name = "bar",
+        .short = "b",
+        .desc = "Bar the bar",
+        .is_req = false,
+    });
 
     try p.parse("abcd -foo");
 }
