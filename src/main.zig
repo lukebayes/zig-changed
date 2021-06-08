@@ -26,6 +26,6 @@ pub fn main() !u8 {
 }
 
 test "ArgParser is available to main" {
-    const parser = try ArgParser.init(talloc, "abcd", "efgh");
+    const parser = try ArgParser.init(talloc);
     defer parser.deinit();
 }

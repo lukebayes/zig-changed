@@ -26,27 +26,22 @@ pub const ArgType = enum {
 
 pub const Arg = struct {
     name: []const u8,
-    arg_type: ArgType = ArgType.File,
+    arg_type: ArgType,
     short: []const u8 = "",
-    desc: []const u8 = "",
+    desc: []const u8,
+    is_req: bool,
 };
 
 pub const ArgParser = struct {
     allocator: *Allocator,
     args: ArgsList,
+    exe_name: []const u8 = "",
+    exe_desc: []const u8 = "",
 
-    pub fn init(a: *Allocator, exe_name: []const u8, desc: []const u8) !*ArgParser {
+    pub fn init(a: *Allocator) !*ArgParser {
         print("\nArgParser.init() called\n", .{});
         var parser = try a.create(ArgParser);
         var args = ArgsList.init(a);
-        var exe_arg = Arg{
-            .arg_type = ArgType.String,
-            .name = exe_name,
-            .desc = desc,
-            .short = "",
-        };
-
-        try args.append(exe_arg);
 
         parser.* = ArgParser{
             .allocator = a,
@@ -65,48 +60,51 @@ pub const ArgParser = struct {
         self.allocator.destroy(self);
     }
 
-    pub fn getExe(self: *ArgParser) []const u8 {
-        return self.args.items[0].name;
-    }
-
-    pub fn getDesc(self: *ArgParser) []const u8 {
-        return self.args.items[0].desc;
-    }
-
     pub fn usage(self: *ArgParser) void {
-        const exe_name = self.getExe();
         print(
             \\{s} {s}
             \\Usage: {s}
             \\  Options:
-        , .{ exe_name, self.getDesc(), exe_name });
+        , .{ self.exe_name, self.exe_desc, self.exe_name });
     }
+
+    pub fn parse(self: *ArgParser, input: []const u8) !void {}
 };
 
 test "ArgParser is instantiable" {
-    var p = try ArgParser.init(talloc, "abcd", "Runs the abc's");
+    var p = try ArgParser.init(talloc);
+    p.exe_name = "abcd";
+    p.exe_desc = "Runs the abc's";
+
     defer p.deinit();
-    try expectEqualStrings(p.getExe(), "abcd");
+    try expectEqualStrings(p.exe_name, "abcd");
+    try expectEqualStrings(p.exe_desc, "Runs the abc's");
 }
 
 test "ArgParser append" {
-    var p = try ArgParser.init(talloc, "fake-app", "fake-app-desc");
+    var p = try ArgParser.init(talloc);
+    p.exe_name = "abcd";
+    p.exe_desc = "Makes everything just a little more difficult";
+
     defer p.deinit();
-    try expectEqualStrings(p.getExe(), "fake-app");
 
     try p.append(.{
         .arg_type = ArgType.String,
         .name = "foo",
         .short = "f",
-        .desc = "Foo the foo to the bar",
+        .desc = "Foo the foo",
+        .is_req = true,
     });
 
     try p.append(.{
         .arg_type = ArgType.String,
         .name = "bar",
         .short = "b",
-        .desc = "Bar the bar to the foo",
+        .desc = "Bar the bar",
+        .is_req = false,
     });
 
     p.usage();
+
+    try p.parse("abcd -foo");
 }
