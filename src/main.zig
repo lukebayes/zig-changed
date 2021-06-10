@@ -2,8 +2,11 @@ const std = @import("std");
 const arg_parser = @import("arg_parser.zig");
 
 const ArgParser = arg_parser.ArgParser;
+const ArgType = arg_parser.ArgType;
 const heap = std.heap;
 const print = std.debug.print;
+const process = std.process;
+const os = std.os;
 const talloc = std.testing.allocator;
 
 pub fn main() !u8 {
@@ -21,6 +24,24 @@ pub fn main() !u8 {
     // Create an arg parser
     const parser = try ArgParser.init(&gpa.allocator);
     defer parser.deinit();
+
+    try parser.append(.{
+        .name = "abcd",
+        .short = "a",
+        .desc = "Foo the foo",
+        .is_req = true,
+        .arg_type = ArgType.String,
+    });
+
+    try parser.append(.{
+        .name = "efgh",
+        .short = "e",
+        .desc = "Bar the bar",
+        .is_req = false,
+        .arg_type = ArgType.String,
+    });
+
+    const itr = try parser.parse(os.argv);
 
     return 0;
 }
