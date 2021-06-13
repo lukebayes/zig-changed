@@ -196,6 +196,7 @@ const Lexer = struct {
     allocator: *Allocator,
     state: LexState = LexState.Ready,
     buffer: ArrayList(u8),
+    result: []LexArg = undefined,
 
     pub fn init(a: *Allocator) !*Lexer {
         const instance = try a.create(Lexer);
@@ -227,6 +228,9 @@ const Lexer = struct {
     }
 
     pub fn deinit(self: *Lexer) void {
+        for (self.result) |arg| {
+            self.allocator.free(arg.name);
+        }
         self.allocator.destroy(self);
     }
 
@@ -266,10 +270,14 @@ const Lexer = struct {
                 Tag.End => {
                     if (self.state == LexState.TakingName) {
                         print("INSIDE >>>>>>>>>>>\n", .{});
-                        arg = .{
-                            .name = buf[0..buf_index],
+                        var name = try self.allocator.alloc(u8, buf_index);
+                        arg = LexArg{
+                            .name = name,
                         };
-                        print("ARg: {s}\n", .{arg.name});
+
+                        mem.copy(u8, arg.name, buf[0..buf_index]);
+                        buf_index = 0;
+                        print("ARg index: {d} value: {s}\n", .{ arg_index, arg.name });
                         args[arg_index] = arg;
                         arg_index += 1;
                     }
@@ -281,8 +289,9 @@ const Lexer = struct {
 
             token_index += 1;
         }
+        self.result = args[0..arg_index];
 
-        return args[0..arg_index];
+        return self.result;
     }
 };
 
@@ -300,10 +309,12 @@ test "Lexer.lex bool arg" {
     print("\n\n\nARGS: {any}\n", .{args});
     print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n", .{});
 
+    print("ARG NAME: {s}\n", .{args[0].name});
     try expectEqual(args.len, 1);
 
     var arg = args[0];
     try expectEqualStrings(arg.name, "abcd");
+    try expectEqualStrings(arg.value, "");
 }
 
 test "Lexer.lex empty tokens" {
