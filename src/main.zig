@@ -22,18 +22,16 @@ pub fn main() !u8 {
     }
 
     // Create an arg parser
-    const parser = try ArgParser.init(&gpa.allocator);
-    defer parser.deinit();
+    // const parser = try ArgParser.init(&gpa.allocator);
+    // defer parser.deinit();
 
-    try parser.append(.{
+    try parser.appendArgs(.{
         .name = "abcd",
         .short = "a",
         .desc = "Foo the foo",
         .is_req = true,
         .arg_type = ArgType.String,
-    });
-
-    try parser.append(.{
+    }, .{
         .name = "efgh",
         .short = "e",
         .desc = "Bar the bar",
@@ -46,7 +44,7 @@ pub fn main() !u8 {
     return 0;
 }
 
-test "ArgParser is available to main" {
-    const parser = try ArgParser.init(talloc);
-    defer parser.deinit();
+test "ArgParser is instantiable" {
+    var p = try ArgParser.init(talloc);
+    defer p.deinit();
 }

@@ -47,7 +47,6 @@ pub const ArgParser = struct {
     exe_desc: []const u8 = "",
 
     pub fn init(a: *Allocator) !*ArgParser {
-        print("\nArgParser.init() called\n", .{});
         var parser = try a.create(ArgParser);
         var args = ArgsList.init(a);
 
@@ -61,6 +60,12 @@ pub const ArgParser = struct {
 
     pub fn append(self: *ArgParser, arg: Arg) !void {
         try self.args.append(arg);
+    }
+
+    pub fn appendArgs(self: *ArgParser, args: []Arg) !void {
+        for (args) |arg| {
+            try self.append(arg);
+        }
     }
 
     pub fn deinit(self: *ArgParser) void {
@@ -102,6 +107,7 @@ const Tag = enum {
     FSlash,
     Quote,
     Space,
+    End,
 };
 
 const Token = struct {
@@ -118,16 +124,15 @@ fn tokenize(a: *Allocator, arg: []const u8, tokens: []Token) ![]Token {
 
     var token_index: u32 = 0;
     var char_index: usize = 0;
-    var char = arg[0];
 
     while (char_index < arg.len) {
+        var char = arg[char_index];
+
         var token = Token{
             .start = char_index,
             .end = char_index + 1,
-            .value = char,
+            .value = arg[char_index],
         };
-
-        char = arg[char_index];
 
         switch (char) {
             '-' => {
@@ -152,11 +157,23 @@ fn tokenize(a: *Allocator, arg: []const u8, tokens: []Token) ![]Token {
         char_index += 1;
     }
 
+    // End EOF token to the end of result.
+    var eof_token = Token{
+        .tag = Tag.End,
+        .start = char_index,
+        .end = char_index,
+        .value = '\n',
+    };
+
+    tokens[token_index] = eof_token;
+    token_index += 1;
+
     return tokens[0..token_index];
 }
 
 const LexState = enum {
     Ready,
+    TakingDash,
     TakingName,
     TakingValue,
     TakingFlag,
@@ -168,11 +185,11 @@ const LexArg = struct {
     value: []u8 = "",
 };
 
-const LexCmd = enum {
-    StartArg,
-    StartValue,
-    End,
-    Ignore,
+const LexError = error{
+    MissingName,
+    MissingValue,
+    UnexpectedValue,
+    UnexpectedSymbol,
 };
 
 const Lexer = struct {
@@ -190,63 +207,77 @@ const Lexer = struct {
         return instance;
     }
 
-    pub fn setState(self: *Lexer, state: LexState) !LexCmd {
-        const cmd = try self.updateState(state);
-        print("CMD: {s}\n", .{cmd});
-        return cmd;
+    pub fn setState(self: *Lexer, state: LexState) ?LexState {
+        self.state = state;
+
+        switch (state) {
+            LexState.Ready => {},
+            LexState.TakingDash => {},
+            LexState.TakingName => {},
+            LexState.TakingValue => {},
+            LexState.TakingFlag => {},
+            LexState.TakingString => {},
+        }
+
+        return self.state;
     }
 
-    fn updateState(self: *Lexer, state: LexState) LexCmd {
-        if (self.state == state) {
-            return;
-        }
-        const last_state = self.state;
-        if (last_state != state) {
-            self.state = state;
-
-            if (last_state == LexState.TakingName or
-                last_state == LexState.StartArg or
-                last_state == LexState.StartValue)
-            {
-                return LexCmd.End;
-            }
-
-            switch (state) {
-                LexState.Ready => {},
-                LexState.TakingName => {
-                    return LexCmd.StartArg;
-                },
-                LexState.TakingValue => {
-                    return LexCmd.StartArg;
-                },
-                LexState.TakingFlag => {
-                    return LexCmd.StartArg;
-                },
-                LexState.TakingString => {
-                    return LexCmd.StartValue;
-                },
-                else => {},
-            }
-        }
+    fn handleToken(self: *Lexer, token: Token, arg: *LexArg) ?LexArg {
+        return null;
     }
 
     pub fn deinit(self: *Lexer) void {
         self.allocator.destroy(self);
     }
 
-    pub fn parse(self: *Lexer, tokens: []Token, args: []LexArg) ![]LexArg {
-        if (tokens.len == 0) {
-            return error.Fail;
-        }
-        if (self.state != LexState.Ready) {
-            return error.Fail;
-        }
-        var token_index: usize = 0;
+    pub fn lex(self: *Lexer, tokens: []Token, args: []LexArg) ![]LexArg {
+        var buf: [256]u8 = undefined;
+        var buf_index: usize = 0;
         var arg_index: usize = 0;
+        var token_index: usize = 0;
+        var arg: LexArg = undefined;
+
+        // var last_state: LexState = undefined;
+        // var chars: [1024]u8 = undefined;
+        // var chars_index: usize = 0;
+
         while (token_index < tokens.len) {
             const token = tokens[token_index];
-            var should_skip = false;
-            print(">>>>>> TOKEN: {s}\n", .{token});
+            print(">> TOKEN: {s}\n", .{token});
+
+            switch (token.tag) {
+                Tag.Dash => {
+                    self.state = LexState.TakingName;
+                    print("Set TAKING NAME\n", .{});
+                },
+                Tag.Char => {
+                    // digest chars until space
+                    print("<<<<<<<<<<<<< CHAR: {c}\n", .{token.value});
+                    buf[buf_index] = token.value;
+                    buf_index += 1;
+                },
+                Tag.Equal => {},
+                Tag.Quote => {},
+                Tag.Space => {
+                    print(">>>>>>>>>> name: {s}\n", .{arg.name});
+                },
+                Tag.BSlash => {},
+                Tag.FSlash => {},
+                Tag.End => {
+                    if (self.state == LexState.TakingName) {
+                        print("INSIDE >>>>>>>>>>>\n", .{});
+                        arg = .{
+                            .name = buf[0..buf_index],
+                        };
+                        print("ARg: {s}\n", .{arg.name});
+                        args[arg_index] = arg;
+                        arg_index += 1;
+                    }
+                },
+            }
+
+            //     // args[arg_index] = result;
+            //     // arg_index += 1;
 
             token_index += 1;
         }
@@ -255,104 +286,69 @@ const Lexer = struct {
     }
 };
 
-test "Lexer is instantiable" {
-    const lexer = try Lexer.init(talloc);
-    defer lexer.deinit();
-}
+test "Lexer.lex bool arg" {
+    print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n", .{});
+    var t_buf: [20]Token = undefined;
+    var a_buf: [20]LexArg = undefined;
 
-test "lex works" {
-    var t_buff: [20]Token = undefined;
-    const tokens = try tokenize(talloc, "--abcd", &t_buff);
-
-    var a_buff: [20]LexArg = undefined;
     const lexer = try Lexer.init(talloc);
     defer lexer.deinit();
 
-    const args = try lexer.parse(tokens, &a_buff);
+    var tokens = try tokenize(talloc, "--abcd", &t_buf);
+    const args = try lexer.lex(tokens[0..], &a_buf);
 
-    print(">>>>>>>>> ARGS RETURNED: {d}\n", .{args.len});
-    // try expectEqual(args.len, 3);
+    print("\n\n\nARGS: {any}\n", .{args});
+    print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n", .{});
+
+    try expectEqual(args.len, 1);
+
+    var arg = args[0];
+    try expectEqualStrings(arg.name, "abcd");
 }
 
-// fn lex(a: *Allocator, tokens: []Token, args: []LexArg) ![]LexArg {
-//     if (tokens.len == 0) {
-//         return error.Fail;
-//     }
-//
-//     var state = LexState.Ready;
-//     var token_index: usize = 0;
-//     var arg_index: usize = 0;
-//     var arg: LexArg = undefined;
-//     var nameList = ArrayList(u8).init(a);
-//     var valueList = ArrayList(u8).init(a);
-//
-//     while (token_index < tokens.len) {
-//         const token = tokens[token_index];
-//         var should_skip = false;
-//
-//         switch (token.tag) {
-//             Tag.Dash => {
-//                 state = LexState.TakingName;
-//                 arg = LexArg{};
-//                 should_skip = true;
-//             },
-//             Tag.Space => {
-//                 if (state != LexState.TakingString) {
-//                     if (state == LexState.TakingFlag) {
-//                         state = LexState.Ready;
-//                     } else if (state == LexState.TakingName) {
-//                         state = LexState.TakingValue;
-//                     }
-//
-//                     should_skip = true;
-//                 }
-//             },
-//             Tag.Equal => {
-//                 if (state == LexState.TakingName) {
-//                     state = LexState.TakingValue;
-//                     should_skip = true;
-//                 }
-//             },
-//             else => {},
-//         }
-//
-//         if (!should_skip) {
-//             if (state == LexState.TakingName or state == LexState.TakingFlag) {
-//                 try nameList.append(token.value);
-//             } else if (state == LexState.TakingValue) {
-//                 try valueList.append(token.value);
-//             }
-//         }
-//
-//         token_index += 1;
-//     }
-//
-//     return args[0..arg_index];
-// }
+test "Lexer.lex empty tokens" {
+    var t_buf: [20]Token = undefined;
+    var a_buf: [20]LexArg = undefined;
+
+    const lexer = try Lexer.init(talloc);
+    defer lexer.deinit();
+
+    const args = try lexer.lex(t_buf[0..0], &a_buf);
+    try expectEqual(args.len, 0);
+}
 
 test "tokenize works" {
     var buffer: [20]Token = undefined;
     const tokens = try tokenize(talloc, "--abcd", &buffer);
 
-    // for (tokens |token, index| {
-    // print(">>> FOUND: {s} {c}\n", .{ token, token.value });
+    // for (tokens) |token, index| {
+    // print(">>>>>>  FOUND: {any} {c} {d}\n", .{ token.tag, token.value, token.start });
     // }
 
-    try expectEqual(tokens.len, 6);
+    try expectEqual(tokens.len, 7);
     try expectEqual(tokens[0].tag, Tag.Dash);
+    try expectEqual(tokens[0].value, '-');
     try expectEqual(tokens[1].tag, Tag.Dash);
+    try expectEqual(tokens[1].value, '-');
     try expectEqual(tokens[2].tag, Tag.Char);
+    try expectEqual(tokens[2].value, 'a');
     try expectEqual(tokens[3].tag, Tag.Char);
+    try expectEqual(tokens[3].value, 'b');
     try expectEqual(tokens[4].tag, Tag.Char);
+    try expectEqual(tokens[4].value, 'c');
     try expectEqual(tokens[5].tag, Tag.Char);
+    try expectEqual(tokens[5].value, 'd');
+    try expectEqual(tokens[6].tag, Tag.End);
+    try expectEqual(tokens[6].value, '\n');
 }
 
 test "ArgParser is instantiable" {
     var p = try ArgParser.init(talloc);
+    defer p.deinit();
+
     p.exe_name = "abcd";
     p.exe_desc = "Runs the abc's";
 
-    defer p.deinit();
     try expectEqualStrings(p.exe_name, "abcd");
     try expectEqualStrings(p.exe_desc, "Runs the abc's");
 }
