@@ -253,6 +253,16 @@ const Lexer = struct {
 
             switch (token.tag) {
                 Tag.Dash => {
+                    if (self.state == LexState.TakingValue) {
+                        // We just pulled a boolean name with
+                        // no value, followed by one or more spaces
+                        // and have encountered a dash, close out
+                        // the boolean and start fresh
+                        buf_index = 0;
+                        args[arg_index] = arg;
+                        arg_index += 1;
+                    }
+
                     // Starting a new arg
                     self.state = LexState.TakingName;
                 },
@@ -330,9 +340,33 @@ const Lexer = struct {
     }
 };
 
+test "Lexer.lex with boolean arg" {
+    var t_buf: [40]Token = undefined;
+    var a_buf: [3]LexArg = undefined;
+
+    const lexer = try Lexer.init(talloc);
+    defer lexer.deinit();
+
+    var tokens = try tokenize(talloc, "--abcd=efgh --ijkl --mnop", &t_buf);
+    const results = try lexer.lex(tokens[0..], &a_buf);
+
+    try expectEqual(results.len, 3);
+    var result = results[0];
+    try expectEqualStrings(result.name, "abcd");
+    try expectEqualStrings(result.value, "efgh");
+
+    result = results[1];
+    try expectEqualStrings(result.name, "ijkl");
+    try expectEqualStrings(result.value, "");
+
+    result = results[2];
+    try expectEqualStrings(result.name, "mnop");
+    try expectEqualStrings(result.value, "");
+}
+
 test "Lexer.lex name value othername othervalue" {
-    var t_buf: [256]Token = undefined;
-    var a_buf: [256]LexArg = undefined;
+    var t_buf: [128]Token = undefined;
+    var a_buf: [2]LexArg = undefined;
 
     const lexer = try Lexer.init(talloc);
     defer lexer.deinit();
@@ -347,8 +381,8 @@ test "Lexer.lex name value othername othervalue" {
 }
 
 test "Lexer.lex name=value othername=othervalue" {
-    var t_buf: [256]Token = undefined;
-    var a_buf: [256]LexArg = undefined;
+    var t_buf: [128]Token = undefined;
+    var a_buf: [2]LexArg = undefined;
 
     const lexer = try Lexer.init(talloc);
     defer lexer.deinit();
@@ -363,8 +397,8 @@ test "Lexer.lex name=value othername=othervalue" {
 }
 
 test "Lexer.lex name value" {
-    var t_buf: [20]Token = undefined;
-    var a_buf: [20]LexArg = undefined;
+    var t_buf: [128]Token = undefined;
+    var a_buf: [2]LexArg = undefined;
 
     const lexer = try Lexer.init(talloc);
     defer lexer.deinit();
@@ -379,8 +413,8 @@ test "Lexer.lex name value" {
 }
 
 test "Lexer.lex name=value" {
-    var t_buf: [20]Token = undefined;
-    var a_buf: [20]LexArg = undefined;
+    var t_buf: [128]Token = undefined;
+    var a_buf: [2]LexArg = undefined;
 
     const lexer = try Lexer.init(talloc);
     defer lexer.deinit();
@@ -395,8 +429,8 @@ test "Lexer.lex name=value" {
 }
 
 test "Lexer.lex bool arg" {
-    var t_buf: [20]Token = undefined;
-    var a_buf: [20]LexArg = undefined;
+    var t_buf: [128]Token = undefined;
+    var a_buf: [2]LexArg = undefined;
 
     const lexer = try Lexer.init(talloc);
     defer lexer.deinit();
@@ -412,8 +446,8 @@ test "Lexer.lex bool arg" {
 }
 
 test "Lexer.lex empty tokens" {
-    var t_buf: [20]Token = undefined;
-    var a_buf: [20]LexArg = undefined;
+    var t_buf: [128]Token = undefined;
+    var a_buf: [2]LexArg = undefined;
 
     const lexer = try Lexer.init(talloc);
     defer lexer.deinit();
@@ -425,10 +459,6 @@ test "Lexer.lex empty tokens" {
 test "tokenize works" {
     var buffer: [20]Token = undefined;
     const tokens = try tokenize(talloc, "--abcd", &buffer);
-
-    // for (tokens) |token, index| {
-    // print(">>>>>>  FOUND: {any} {c} {d}\n", .{ token.tag, token.value, token.start });
-    // }
 
     try expectEqual(tokens.len, 7);
     try expectEqual(tokens[0].tag, Tag.Dash);
