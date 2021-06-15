@@ -22,16 +22,17 @@ pub fn main() !u8 {
     }
 
     // Create an arg parser
-    // const parser = try ArgParser.init(&gpa.allocator);
-    // defer parser.deinit();
+    const parser = try ArgParser.init(&gpa.allocator);
+    defer parser.deinit();
 
-    try parser.appendArgs(.{
+    try parser.append(.{
         .name = "abcd",
         .short = "a",
         .desc = "Foo the foo",
         .is_req = true,
         .arg_type = ArgType.String,
-    }, .{
+    });
+    try parser.append(.{
         .name = "efgh",
         .short = "e",
         .desc = "Bar the bar",
