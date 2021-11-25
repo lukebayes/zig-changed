@@ -82,7 +82,8 @@ pub const ArgParser = struct {
 
     // NOTE(lbayes): std.os.args are: [][*:0]u8, we need to provide
     // an easy way to convert this to a slice of []const u8.
-    pub fn parse(self: *ArgParser, input: [][*:0]u8) !void {
+    pub fn parse(input: [][*:0]u8) !void {
+        // pub fn parse(self: *ArgParser, input: [][*:0]u8) !void {
         print("PARSER input: {s}\n", .{input});
 
         // for (input) |arg| {
@@ -183,5 +184,5 @@ test "ArgParser.parse" {
         "green",
     };
 
-    var itr = try p.parse(argv[0..]);
+    try p.parse(argv[0..]);
 }

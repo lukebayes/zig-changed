@@ -40,7 +40,7 @@ pub fn main() !u8 {
         .arg_type = ArgType.String,
     });
 
-    const itr = try parser.parse(os.argv);
+    // const itr = try parser.parse(os.argv);
 
     return 0;
 }

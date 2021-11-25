@@ -11,7 +11,7 @@ pub fn build(b: *Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const version = b.version(0, 0, 1);
+    // const version = b.version(0, 0, 1);
 
     // const lib = b.addSharedLibrary("beam", "src/lib.zig", version);
     // lib.setTarget(target);
